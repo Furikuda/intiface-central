@@ -220,6 +220,20 @@ class ControlWidget extends StatelessWidget {
                     engineStatus = "REST API Server starting...";
                   }
                 }
+              case AppMode.client:
+                {
+                  if (state is ClientConnectedState) {
+                    engineStatus = "${state.clientName} connected";
+                  } else if (state is EngineStartedState ||
+                      state is EngineServerCreatedState ||
+                      state is ClientDisconnectedState) {
+                    engineStatus = "Connecting to remote server...";
+                  } else if (state is EngineStartingState) {
+                    engineStatus = "Client starting...";
+                  } else if (state is EngineStoppedState) {
+                    engineStatus = "Client not running";
+                  }
+                }
             }
 
             List<Widget> columnWidgets = [

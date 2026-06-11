@@ -8,7 +8,7 @@ import 'package:pubspec_parse/pubspec_parse.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-enum AppMode { engine, repeater, restApi }
+enum AppMode { engine, repeater, restApi, client }
 
 class IntifaceConfigurationState {}
 
@@ -159,6 +159,11 @@ class RepeaterRemoteAddressState extends IntifaceConfigurationState {
   RepeaterRemoteAddressState(this.value);
 }
 
+class ClientWebsocketAddressState extends IntifaceConfigurationState {
+  final String value;
+  ClientWebsocketAddressState(this.value);
+}
+
 class RestLocalPortState extends IntifaceConfigurationState {
   final int value;
   RestLocalPortState(this.value);
@@ -282,6 +287,7 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
     displayLogLevel = _prefs.getString("displayLogLevel") ?? "info";
     repeaterLocalPort = _prefs.getInt("repeaterLocalPort") ?? 12345;
     repeaterRemoteAddress = _prefs.getString("repeaterRemoteAddress") ?? "192.168.1.1:12345";
+    clientWebsocketAddress = _prefs.getString("clientWebsocketAddress") ?? "ws://";
 
     restLocalPort = _prefs.getInt("restLocalPort") ?? 3000;
     allowExperimentalRestServer = _prefs.getBool("allowExperimentalRestServer") ?? false;
@@ -553,6 +559,12 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
     emit(RepeaterRemoteAddressState(value));
   }
 
+  String get clientWebsocketAddress => _prefs.getString("clientWebsocketAddress")!;
+  set clientWebsocketAddress(String value) {
+    _prefs.setString("clientWebsocketAddress", value);
+    emit(ClientWebsocketAddressState(value));
+  }
+
   AppMode get appMode {
     var mode = _prefs.getString("appMode");
     return AppMode.values.firstWhere((element) => mode == element.name, orElse: () => AppMode.engine);
@@ -588,7 +600,10 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
       userDeviceConfigJson: userDeviceConfigFile,
       userDeviceConfigPath: IntifacePaths.userDeviceConfigFile.path,
       websocketUseAllInterfaces: websocketServerAllInterfaces,
-      websocketPort: websocketServerPort,
+      // In client mode we dial out to a remote server instead of listening, so the
+      // local websocket port must be null for the engine to select the client transport.
+      websocketPort: appMode == AppMode.client ? null : websocketServerPort,
+      websocketClientAddress: appMode == AppMode.client ? clientWebsocketAddress : null,
       frontendInProcessChannel: isMobile(),
       maxPingTime: serverMaxPingTime,
       useBluetoothLe: useBluetoothLE,

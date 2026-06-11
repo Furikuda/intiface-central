@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intiface_central/bloc/configuration/intiface_configuration_cubit.dart';
 import 'package:intiface_central/bloc/engine/engine_control_bloc.dart';
+import 'package:intiface_central/widget/client_config_widget.dart';
 import 'package:intiface_central/widget/engine_config_widget.dart';
 import 'package:intiface_central/widget/repeater_config_widget.dart';
 import 'package:intiface_central/widget/rest_api_config_widget.dart';
@@ -15,7 +16,7 @@ class AppControlPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var configCubit = BlocProvider.of<IntifaceConfigurationCubit>(context);
-    var modes = [AppMode.engine, AppMode.repeater];
+    var modes = [AppMode.engine, AppMode.repeater, AppMode.client];
     if (configCubit.allowExperimentalRestServer) {
       modes.add(AppMode.restApi);
     }
@@ -105,6 +106,7 @@ class AppControlPage extends StatelessWidget {
                     AppMode.engine => const EngineConfigWidget(),
                     AppMode.repeater => const RepeaterConfigWidget(),
                     AppMode.restApi => const RestApiConfigWidget(),
+                    AppMode.client => const ClientConfigWidget(),
                   },
                 ],
               ),
