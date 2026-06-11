@@ -92,6 +92,13 @@ pub fn run_engine(sink: StreamSink<String>, args: EngineOptionsExternal) -> Resu
   if RUN_STATUS.load(Ordering::Relaxed) {
     return Err(anyhow::Error::msg("Server already running!"));
   }
+
+  // rustls (used by the websocket client transport for wss:// connections) requires a
+  // process-global crypto provider to be installed before the first TLS handshake.
+  // Install ring's provider; ignore the error if one is already installed (run_engine
+  // may be called multiple times across start/stop cycles).
+  let _ = rustls::crypto::ring::default_provider().install_default();
+
   RUN_STATUS.store(true, Ordering::Relaxed);
   // Clear the shutdown flag for the new engine run
   ENGINE_SHUTDOWN.store(false, Ordering::SeqCst);
