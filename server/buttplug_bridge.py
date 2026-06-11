@@ -16,6 +16,8 @@ import asyncio
 import json
 import logging
 
+from websockets.exceptions import ConnectionClosed
+
 import buttplug_protocol as proto
 
 log = logging.getLogger("bridge")
@@ -144,7 +146,12 @@ class ButtplugAppConnection:
     async def _send(self, message: dict) -> None:
         data = json.dumps([message])
         async with self._send_lock:
-            await self.app_ws.send(data)
+            try:
+                await self.app_ws.send(data)
+            except ConnectionClosed:
+                # The app disconnected; nothing to send to. This is expected, e.g. when
+                # the controller's safety-stop fires after the app has already gone away.
+                log.debug("App connection closed; dropping outgoing message")
 
     async def _request(self, message: dict) -> dict:
         msg_id = next(iter(message.values()))["Id"]
