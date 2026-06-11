@@ -55,6 +55,17 @@ For real port 80: `sudo python3 server.py` (or grant the binary `cap_net_bind_se
 Point the app's Client Mode at `ws://<server-ip>:8765`, then share the session ID it
 shows and have your friend open `http://<server-ip>/` (or `:8080` in dev).
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Unit tests live in `tests/` and cover the protocol builders, session registry,
+the Buttplug bridge (handshake/verify, command relay, disconnect handling), and
+the web routes/control websocket.
+
 ## Files
 
 - `server.py` — entrypoint, starts both listeners.
