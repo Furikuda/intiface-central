@@ -5,7 +5,7 @@ Flow:
   POST /                 -> verify by activating the pending app connection;
                             on success redirect to /control/<session_id>
   GET  /control/<sid>    -> control page (sliders/stop per actuator)
-  GET  /ws/control/<sid> -> control websocket carrying live commands
+  GET  /socket/<sid>     -> control websocket carrying live commands
 
 No TLS, minimal auth: knowing the session ID is the only gate, so the POST form
 is rate limited per IP. Test-only.
@@ -81,7 +81,8 @@ async def submit(request: web.Request) -> web.Response:
         )
 
     manager.mark_active(conn)
-    raise web.HTTPFound(f"/control/{session_id}")
+    # Relative redirect so it resolves correctly under a reverse-proxy base path.
+    raise web.HTTPFound(f"control/{session_id}")
 
 
 async def control(request: web.Request) -> web.Response:
@@ -156,7 +157,9 @@ def make_web_app(manager) -> web.Application:
             web.get("/", index),
             web.post("/", submit),
             web.get("/control/{sid}", control),
-            web.get("/ws/control/{sid}", control_ws),
+            # Not under /ws so a reverse proxy can route <base>/ws to the app
+            # websocket without catching the browser control socket too.
+            web.get("/socket/{sid}", control_ws),
         ]
     )
     return app

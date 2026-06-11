@@ -63,6 +63,15 @@ async def test_index_renders_form(aiohttp_client):
     assert "Session ID" in text and 'name="session_id"' in text and 'name="name"' in text
 
 
+async def test_index_supports_session_prefill(aiohttp_client):
+    # The shared link arrives as /?session=word-word; the page prefills it via JS.
+    client = await aiohttp_client(make_web_app(FakeManager()))
+    resp = await client.get("/?session=amber-otter-lunar-pebble")
+    assert resp.status == 200
+    text = await resp.text()
+    assert "URLSearchParams" in text and 'get("session")' in text
+
+
 async def test_submit_success_redirects_and_activates(aiohttp_client):
     mgr = FakeManager()
     conn = FakeConn("word-id")
@@ -73,7 +82,7 @@ async def test_submit_success_redirects_and_activates(aiohttp_client):
         "/", data={"name": "Bob", "session_id": "word-id"}, allow_redirects=False
     )
     assert resp.status == 302
-    assert resp.headers["Location"] == "/control/word-id"
+    assert resp.headers["Location"] == "control/word-id"  # relative for base-path support
     assert conn.activated_with == ("Bob", "word-id")
     assert mgr.get_active("word-id") is conn
 
@@ -142,7 +151,7 @@ async def test_control_ws_relays_commands(aiohttp_client):
     mgr.active["sid1"] = conn
     client = await aiohttp_client(make_web_app(mgr))
 
-    ws = await client.ws_connect("/ws/control/sid1")
+    ws = await client.ws_connect("/socket/sid1")
     first = await ws.receive_json()
     assert first["type"] == "devices"
     # The control page is fed a live stats snapshot right after the device list.
@@ -167,7 +176,7 @@ async def test_control_ws_stop_all(aiohttp_client):
     mgr.active["sid1"] = conn
     client = await aiohttp_client(make_web_app(mgr))
 
-    ws = await client.ws_connect("/ws/control/sid1")
+    ws = await client.ws_connect("/socket/sid1")
     await ws.receive_json()  # devices
     await ws.receive_json()  # stats
     await ws.send_json({"stop_all": True})
@@ -180,7 +189,7 @@ async def test_control_ws_stop_all(aiohttp_client):
 
 async def test_control_ws_unknown_session(aiohttp_client):
     client = await aiohttp_client(make_web_app(FakeManager()))
-    ws = await client.ws_connect("/ws/control/nope")
+    ws = await client.ws_connect("/socket/nope")
     msg = await ws.receive_json()
     assert msg["type"] == "error"
     await ws.close()

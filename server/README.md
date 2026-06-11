@@ -52,8 +52,48 @@ For real port 80: `sudo python3 server.py` (or grant the binary `cap_net_bind_se
 [12:00:00] server: App WebSocket on ws://0.0.0.0:8765 | Web UI on http://0.0.0.0:80
 ```
 
-Point the app's Client Mode at `ws://<server-ip>:8765`, then share the session ID it
-shows and have your friend open `http://<server-ip>/` (or `:8080` in dev).
+Point the app's Client Mode at the server URL (see below), then share the link the app
+shows ("copy control link") with your friend.
+
+## Reverse proxy / base path (recommended)
+
+The app's Client Mode takes a single **Server URL** like `https://domain.com/intiface`
+and derives both endpoints from it:
+
+- engine websocket → `wss://domain.com/intiface/ws`
+- control link → `https://domain.com/intiface/?session=<id>` (opens the form prefilled)
+
+So put both listeners behind one host:port, split by path. The browser control socket
+lives at `<base>/socket/<id>` (deliberately **not** under `/ws`) so the proxy can route
+`<base>/ws` to the app websocket without catching it. Example nginx:
+
+```nginx
+location = /intiface/ws {                 # app (engine) websocket -> :8765
+  proxy_pass http://127.0.0.1:8765/;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+}
+location /intiface/ {                      # web UI + control socket -> :80
+  proxy_pass http://127.0.0.1:80/;         # trailing slash strips the base path
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;   # control socket at /intiface/socket/<id>
+  proxy_set_header Connection "upgrade";
+}
+```
+
+Because the app derives both endpoints from one host:port, the two listeners must share
+one — so even local testing wants a tiny proxy. A minimal Caddyfile (root base path):
+
+```
+:8443 {
+  handle /ws        { reverse_proxy 127.0.0.1:8765 }   # app websocket
+  handle            { reverse_proxy 127.0.0.1:8080 }   # web UI + /socket/<id>
+}
+```
+
+Then set the app's Server URL to `http://localhost:8443` (engine → `ws://localhost:8443/ws`,
+link → `http://localhost:8443/?session=<id>`).
 
 ## Tests
 

@@ -63,7 +63,7 @@
     <span class="badge">⚠ no encryption · for testing only</span>
     <h1>Totally Not Secure Intiface Proxy</h1>
     <p class="tag">Punch in the secret words and a name, and you're in control. 🎛️</p>
-    <form method="post" action="/">
+    <form method="post" action="">
       <label for="name">Your name</label>
       <input id="name" name="name" autocomplete="off" placeholder="e.g. Alex" required />
       <label for="session_id">Session ID</label>
@@ -73,5 +73,13 @@
       <button type="submit">Connect ✨</button>
     </form>
   </div>
+  <script>
+    // Prefill the session ID when arriving via a shared link (…/?session=word-word-word-word).
+    const session = new URLSearchParams(location.search).get("session");
+    if (session) {
+      document.getElementById("session_id").value = session;
+      document.getElementById("name").focus();
+    }
+  </script>
 </body>
 </html>

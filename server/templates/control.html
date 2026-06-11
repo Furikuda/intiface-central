@@ -95,7 +95,10 @@
   <script>
     const sessionId = "{{SESSION_ID}}";
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${location.host}/ws/control/${sessionId}`);
+    // Derive the socket path relative to this page so it works under any reverse-proxy
+    // base path: this page is served at <base>/control/<sid>; the socket is <base>/socket/<sid>.
+    const base = location.pathname.replace(/\/control\/[^/]+\/?$/, "");
+    const ws = new WebSocket(`${proto}://${location.host}${base}/socket/${sessionId}`);
 
     const whoEl = document.getElementById("who");
     const statsEl = document.getElementById("stats");
