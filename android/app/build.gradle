@@ -45,11 +45,13 @@ android {
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
+        test.java.srcDirs += 'src/test/kotlin'
     }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId "com.nonpolynomial.intiface_central"
+        // Custom app id so this test build installs side-by-side with the official app.
+        applicationId "com.furikuda.intiface_central"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-build-configuration.
         minSdkVersion 27
@@ -80,6 +82,13 @@ android {
 
         }
     }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
 }
 
 flutter {
@@ -90,6 +99,11 @@ dependencies {
     implementation(name: 'droidplug', version: '+', ext: 'aar')
     // For AGP 7.4+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+
+    // Local JVM unit tests (Robolectric smoke test for MainActivity).
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core:1.6.1")
     // For AGP 7.3
     // coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.2.3")
     // For AGP 4.0 to 7.2
