@@ -210,11 +210,17 @@ class AllowExperimentalRestServer extends IntifaceConfigurationState {
 class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
   final SharedPreferences _prefs;
 
-  IntifaceConfigurationCubit._create(this._prefs) : super(IntifaceConfigurationStateNone());
+  // Ephemeral instances are throwaway copies built in the foreground-service isolate to
+  // assemble engine options; they must not regenerate the client session ID (they reuse
+  // the persisted one the UI isolate created), and their emit()s go nowhere.
+  final bool _ephemeral;
 
-  static Future<IntifaceConfigurationCubit> create() async {
+  IntifaceConfigurationCubit._create(this._prefs, this._ephemeral)
+    : super(IntifaceConfigurationStateNone());
+
+  static Future<IntifaceConfigurationCubit> create({bool ephemeral = false}) async {
     final prefs = await SharedPreferences.getInstance();
-    var cubit = IntifaceConfigurationCubit._create(prefs);
+    var cubit = IntifaceConfigurationCubit._create(prefs, ephemeral);
     await cubit._init();
     return cubit;
   }
@@ -571,16 +577,10 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
     emit(ClientWebsocketAddressState(value));
   }
 
-  // The Client Mode session ID is ephemeral: regenerated on each engine start and not
-  // persisted. Advertised to the remote server as the Buttplug server name.
-  String _clientSessionId = "";
-  String get clientSessionId => _clientSessionId;
-
-  String _newClientSessionId() {
-    _clientSessionId = generateSessionId();
-    emit(ClientSessionIdState(_clientSessionId));
-    return _clientSessionId;
-  }
+  // The Client Mode session ID is persisted so the foreground-service isolate (which
+  // rebuilds the engine options on its own cubit) advertises the same value the UI shows.
+  // The UI isolate regenerates a fresh one on each start (see getEngineOptions).
+  String get clientSessionId => _prefs.getString("clientSessionId") ?? "";
 
   AppMode get appMode {
     var mode = _prefs.getString("appMode");
@@ -611,10 +611,24 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
       userDeviceConfigFile = await File(IntifacePaths.userDeviceConfigFile.path).readAsString();
     }
 
+    // In client mode, advertise the session ID as the Buttplug server name so the remote
+    // server can verify the ID a browser user types in. The UI isolate regenerates a fresh
+    // one and persists it (awaited, so it's on disk before the foreground service starts);
+    // the ephemeral foreground-service isolate reuses that persisted value, so the app and
+    // the server agree on the same ID.
+    var effectiveServerName = serverName;
+    if (appMode == AppMode.client) {
+      if (_ephemeral) {
+        effectiveServerName = clientSessionId;
+      } else {
+        effectiveServerName = generateSessionId();
+        await _prefs.setString("clientSessionId", effectiveServerName);
+        emit(ClientSessionIdState(effectiveServerName));
+      }
+    }
+
     return EngineOptionsExternal(
-      // In client mode, advertise a fresh session ID as the Buttplug server name so the
-      // remote server can verify the ID a browser user types in.
-      serverName: appMode == AppMode.client ? _newClientSessionId() : serverName,
+      serverName: effectiveServerName,
       deviceConfigJson: deviceConfigFile,
       userDeviceConfigJson: userDeviceConfigFile,
       userDeviceConfigPath: IntifacePaths.userDeviceConfigFile.path,

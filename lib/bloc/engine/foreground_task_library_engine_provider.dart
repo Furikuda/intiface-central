@@ -120,7 +120,9 @@ class IntifaceEngineTaskHandler extends TaskHandler {
     // Under the covers, flutter_foreground_task is just using SharedPreferences for its data commands anyways, so this
     // is basically doing what it does, while not having to deal with shuffling things around.
     _sendProviderLog("INFO", "Creating config repo");
-    var configRepo = await IntifaceConfigurationCubit.create();
+    // Ephemeral: this throwaway cubit must reuse the session ID the UI isolate persisted,
+    // not generate a new one (which the app's UI would never see).
+    var configRepo = await IntifaceConfigurationCubit.create(ephemeral: true);
     _sendProviderLog("INFO", "Building arguments");
 
     // Since we're on another process we'll have to reinitialize our paths.
