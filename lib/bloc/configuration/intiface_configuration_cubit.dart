@@ -579,8 +579,15 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
 
   // The Client Mode session ID is persisted so the foreground-service isolate (which
   // rebuilds the engine options on its own cubit) advertises the same value the UI shows.
-  // The UI isolate regenerates a fresh one on each start (see getEngineOptions).
+  // The UI isolate regenerates a fresh one on each start (see getEngineOptions) and clears
+  // it when the engine stops so a stale ID isn't shown while idle.
   String get clientSessionId => _prefs.getString("clientSessionId") ?? "";
+
+  void clearClientSessionId() {
+    if (clientSessionId.isEmpty) return;
+    _prefs.remove("clientSessionId");
+    emit(ClientSessionIdState(""));
+  }
 
   AppMode get appMode {
     var mode = _prefs.getString("appMode");

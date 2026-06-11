@@ -533,6 +533,7 @@ class IntifaceCentralApp extends StatelessWidget with WindowListener, TrayListen
         }
       }
       if (state is EngineStoppedState) {
+        configCubit.clearClientSessionId();
         deviceControlBloc.add(DeviceManagerEngineStoppedEvent());
         if (Platform.isIOS) {
           await MdnsPlatformService.instance.stopMdnsPublisher();

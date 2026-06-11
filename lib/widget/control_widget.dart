@@ -282,7 +282,7 @@ class ControlWidget extends StatelessWidget {
                   builder: (context, state) {
                     final sessionId = configCubit.clientSessionId;
                     if (sessionId.isEmpty) {
-                      return const Text("(starting…)");
+                      return const Text("—");
                     }
                     return Row(
                       mainAxisSize: MainAxisSize.min,
