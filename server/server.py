@@ -1,8 +1,11 @@
-"""Minimal WebSocket server boilerplate for Intiface Central "Client Mode".
+"""Two-port server for Intiface Central "Client Mode".
 
-Listens on port 8765 and prints the content of everything it receives to the
-console. This is intentionally a skeleton: it does not yet send any Buttplug
-commands back — that's for a later iteration.
+  * Port 8765 (WebSocket): the app dials in here. We drive it as a Buttplug client.
+  * Port 80 (plain HTTP):  a browser enters their name + the app's session ID and
+                           gets a page to control the toy.
+
+Override ports with env vars for local dev without root:
+    WS_PORT=8765 WEB_PORT=8080 python3 server.py
 
 Run:
     pip install -r requirements.txt
@@ -10,33 +13,46 @@ Run:
 """
 
 import asyncio
-from datetime import datetime
+import logging
+import os
 
+from aiohttp import web
 from websockets.asyncio.server import serve
 
+from buttplug_bridge import handle_app
+from sessions import SessionManager
+from web import make_web_app
+
 HOST = "0.0.0.0"
-PORT = 8765
-
-
-def _log(message: str) -> None:
-    print(f"[{datetime.now():%H:%M:%S}] {message}", flush=True)
-
-
-async def handler(websocket) -> None:
-    """Handle a single client connection: print every message it sends."""
-    peer = websocket.remote_address  # (host, port) of the connected client
-    _log(f"Client connected: {peer}")
-    try:
-        async for message in websocket:
-            _log(f"Received from {peer}: {message!r}")
-    finally:
-        _log(f"Client disconnected: {peer}")
+WS_PORT = int(os.environ.get("WS_PORT", "8765"))
+WEB_PORT = int(os.environ.get("WEB_PORT", "80"))
 
 
 async def main() -> None:
-    async with serve(handler, HOST, PORT):
-        _log(f"WebSocket server listening on ws://{HOST}:{PORT}")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(asctime)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    manager = SessionManager()
+
+    # App-facing WebSocket listener.
+    ws_server = await serve(lambda ws: handle_app(ws, manager), HOST, WS_PORT)
+
+    # Browser-facing HTTP listener.
+    runner = web.AppRunner(make_web_app(manager))
+    await runner.setup()
+    site = web.TCPSite(runner, HOST, WEB_PORT)
+    await site.start()
+
+    logging.getLogger("server").info(
+        "App WebSocket on ws://%s:%s | Web UI on http://%s:%s", HOST, WS_PORT, HOST, WEB_PORT
+    )
+    try:
         await asyncio.get_running_loop().create_future()  # run forever
+    finally:
+        ws_server.close()
+        await runner.cleanup()
 
 
 if __name__ == "__main__":

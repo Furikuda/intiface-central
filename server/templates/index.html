@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Connect to a device</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 28rem; margin: 4rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
+    input { width: 100%; padding: 0.6rem; font-size: 1rem; box-sizing: border-box; }
+    button { margin-top: 1.5rem; padding: 0.7rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    .error { color: #b00020; margin-top: 1rem; }
+    .hint { color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Control a device</h1>
+  <p class="hint">Enter your name and the session ID shown in the other person's app.</p>
+  <form method="post" action="/">
+    <label for="name">Your name</label>
+    <input id="name" name="name" autocomplete="off" required />
+    <label for="session_id">Session ID</label>
+    <input id="session_id" name="session_id" autocomplete="off" placeholder="word-word-word-word" required />
+    <div class="error">{{ERROR}}</div>
+    <button type="submit">Connect</button>
+  </form>
+</body>
+</html>

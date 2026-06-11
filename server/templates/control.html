@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Device control</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.3rem; }
+    .device { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+    .device h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+    .actuator { margin: 0.75rem 0; }
+    .actuator label { display: block; font-size: 0.9rem; color: #333; }
+    input[type=range] { width: 100%; }
+    button { padding: 0.4rem 0.8rem; cursor: pointer; }
+    #status { color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Device control</h1>
+  <p id="status">Connecting…</p>
+  <div id="devices"></div>
+
+  <script>
+    const sessionId = "{{SESSION_ID}}";
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${proto}://${location.host}/ws/control/${sessionId}`);
+    const statusEl = document.getElementById("status");
+    const devicesEl = document.getElementById("devices");
+
+    ws.onopen = () => { statusEl.textContent = "Connected."; };
+    ws.onclose = () => { statusEl.textContent = "Disconnected. Reload to reconnect."; };
+    ws.onerror = () => { statusEl.textContent = "Connection error."; };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "devices") renderDevices(msg.devices);
+      else if (msg.type === "error") statusEl.textContent = msg.message;
+    };
+
+    function send(obj) { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
+
+    function renderDevices(devices) {
+      devicesEl.innerHTML = "";
+      if (!devices.length) {
+        devicesEl.innerHTML = "<p>No devices yet. Waiting for one to connect…</p>";
+        return;
+      }
+      for (const device of devices) {
+        const card = document.createElement("div");
+        card.className = "device";
+        const title = document.createElement("h2");
+        title.textContent = device.name;
+        card.appendChild(title);
+
+        if (!device.actuators.length) {
+          const none = document.createElement("p");
+          none.textContent = "No controllable actuators.";
+          card.appendChild(none);
+        }
+
+        for (const actuator of device.actuators) {
+          const wrap = document.createElement("div");
+          wrap.className = "actuator";
+          const label = document.createElement("label");
+          label.textContent = `${actuator.type}${actuator.descriptor ? " — " + actuator.descriptor : ""}`;
+          const slider = document.createElement("input");
+          slider.type = "range";
+          slider.min = "0"; slider.max = "1"; slider.step = "0.01"; slider.value = "0";
+          slider.oninput = () => send({
+            device: device.index, actuator: actuator.index, intensity: parseFloat(slider.value),
+          });
+          wrap.appendChild(label);
+          wrap.appendChild(slider);
+          card.appendChild(wrap);
+        }
+
+        const stop = document.createElement("button");
+        stop.textContent = "Stop";
+        stop.onclick = () => {
+          send({ device: device.index, stop: true });
+          card.querySelectorAll("input[type=range]").forEach((s) => (s.value = "0"));
+        };
+        card.appendChild(stop);
+        devicesEl.appendChild(card);
+      }
+    }
+  </script>
+</body>
+</html>
