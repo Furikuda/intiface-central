@@ -25,7 +25,7 @@ class _ClientConfigWidgetState extends State<ClientConfigWidget> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     var configCubit = BlocProvider.of<IntifaceConfigurationCubit>(context);
-    _clientAddressController.text = configCubit.clientWebsocketAddress;
+    _clientAddressController.text = configCubit.clientServerUrl;
   }
 
   @override
@@ -46,7 +46,7 @@ class _ClientConfigWidgetState extends State<ClientConfigWidget> {
             IntifaceConfigurationState
           >(
             buildWhen: (previousState, currentState) =>
-                currentState is ClientWebsocketAddressState,
+                currentState is ClientServerUrlState,
             builder: (context, state) {
               var cubit = BlocProvider.of<IntifaceConfigurationCubit>(context);
               var engineIsRunning = BlocProvider.of<EngineControlBloc>(
@@ -58,21 +58,21 @@ class _ClientConfigWidgetState extends State<ClientConfigWidget> {
                   tiles: [
                     SettingsTile.navigation(
                       enabled: !engineIsRunning,
-                      title: _settingsText("Remote Server Address"),
-                      value: _settingsText(cubit.clientWebsocketAddress),
+                      title: _settingsText("Server URL"),
+                      value: _settingsText(cubit.clientServerUrl),
                       onPressed: (context) {
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: const Text('Remote Server Address'),
+                            title: const Text('Server URL'),
                             content: TextField(
                               controller: _clientAddressController,
                               onSubmitted: (value) {
-                                cubit.clientWebsocketAddress = value;
+                                cubit.clientServerUrl = value;
                                 Navigator.pop(context);
                               },
                               decoration: const InputDecoration(
-                                hintText: "ws://host:port",
+                                hintText: "https://host:port/path",
                               ),
                             ),
                             actions: <Widget>[
@@ -83,7 +83,7 @@ class _ClientConfigWidgetState extends State<ClientConfigWidget> {
                               ),
                               TextButton(
                                 onPressed: () {
-                                  cubit.clientWebsocketAddress =
+                                  cubit.clientServerUrl =
                                       _clientAddressController.text;
                                   Navigator.pop(context);
                                 },

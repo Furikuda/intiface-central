@@ -7,6 +7,7 @@ import 'package:intiface_central/bloc/util/error_notifier_cubit.dart';
 import 'package:intiface_central/bloc/util/navigation_cubit.dart';
 import 'package:intiface_central/bloc/util/network_info_cubit.dart';
 import 'package:intiface_central/util/bluetooth_check.dart';
+import 'package:intiface_central/util/client_url.dart';
 import 'package:intiface_central/util/docs_screenshot_keys.dart';
 import 'package:intiface_central/util/intiface_util.dart';
 import 'package:loggy/loggy.dart';
@@ -298,16 +299,26 @@ class ControlWidget extends StatelessWidget {
                         ),
                         IconButton(
                           icon: const Icon(Icons.copy, size: 18),
-                          tooltip: "Copy session ID",
-                          onPressed: () =>
-                              Clipboard.setData(ClipboardData(text: sessionId)),
+                          tooltip: "Copy control link",
+                          onPressed: () {
+                            final url = deriveControlUrl(
+                              configCubit.clientServerUrl,
+                              sessionId,
+                            );
+                            Clipboard.setData(
+                              ClipboardData(
+                                text: url.isNotEmpty ? url : sessionId,
+                              ),
+                            );
+                          },
                         ),
                       ],
                     );
                   },
                 ),
                 const Text(
-                  "Share this so someone can control your device from a browser.",
+                  "Copy a link that opens the control page with this ID filled in, "
+                  "and share it so someone can control your device from a browser.",
                 ),
               ]);
             }

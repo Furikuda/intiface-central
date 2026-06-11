@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intiface_central/src/rust/api/runtime.dart';
+import 'package:intiface_central/util/client_url.dart';
 import 'package:intiface_central/util/intiface_util.dart';
 import 'package:intiface_central/util/session_id.dart';
 import 'package:pubspec_parse/pubspec_parse.dart';
@@ -163,6 +164,11 @@ class RepeaterRemoteAddressState extends IntifaceConfigurationState {
 class ClientWebsocketAddressState extends IntifaceConfigurationState {
   final String value;
   ClientWebsocketAddressState(this.value);
+}
+
+class ClientServerUrlState extends IntifaceConfigurationState {
+  final String value;
+  ClientServerUrlState(this.value);
 }
 
 class ClientSessionIdState extends IntifaceConfigurationState {
@@ -577,6 +583,14 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
     emit(ClientWebsocketAddressState(value));
   }
 
+  // The single Server URL the user enters in client mode; the websocket address and the
+  // shareable control link are both derived from it (see util/client_url.dart).
+  String get clientServerUrl => _prefs.getString("clientServerUrl") ?? "https://";
+  set clientServerUrl(String value) {
+    _prefs.setString("clientServerUrl", value);
+    emit(ClientServerUrlState(value));
+  }
+
   // The Client Mode session ID is persisted so the foreground-service isolate (which
   // rebuilds the engine options on its own cubit) advertises the same value the UI shows.
   // The UI isolate regenerates a fresh one on each start (see getEngineOptions) and clears
@@ -643,7 +657,7 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
       // In client mode we dial out to a remote server instead of listening, so the
       // local websocket port must be null for the engine to select the client transport.
       websocketPort: appMode == AppMode.client ? null : websocketServerPort,
-      websocketClientAddress: appMode == AppMode.client ? clientWebsocketAddress : null,
+      websocketClientAddress: appMode == AppMode.client ? deriveWebsocketAddress(clientServerUrl) : null,
       frontendInProcessChannel: isMobile(),
       maxPingTime: serverMaxPingTime,
       useBluetoothLe: useBluetoothLE,
