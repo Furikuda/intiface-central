@@ -15,6 +15,7 @@ session is spent (the app must restart Client Mode).
 import asyncio
 import json
 import logging
+import time
 
 from websockets.exceptions import ConnectionClosed
 
@@ -47,6 +48,16 @@ class ButtplugAppConnection:
         self._ping_task: asyncio.Task | None = None
         self.max_ping_time = 0
 
+        # Live session stats (surfaced to the control page).
+        self.controller_name: str | None = None
+        self.activated_at: float | None = None
+        self.command_count = 0
+        self.peak_intensity = 0.0
+        self.active_seconds = 0.0
+        self.vibration_units = 0.0                  # ∫ intensity dt — a fun cumulative score
+        self._intensities: dict[tuple[int, int], float] = {}
+        self._stats_task: asyncio.Task | None = None
+
     # ---- lifecycle ---------------------------------------------------------
 
     async def run(self) -> None:
@@ -67,6 +78,8 @@ class ButtplugAppConnection:
     def _cleanup(self) -> None:
         if self._ping_task:
             self._ping_task.cancel()
+        if self._stats_task:
+            self._stats_task.cancel()
         for fut in self._pending.values():
             if not fut.done():
                 fut.cancel()
@@ -105,6 +118,9 @@ class ButtplugAppConnection:
         await self._send(proto.start_scanning(self._next_id()))
 
         self.active = True
+        self.controller_name = name
+        self.activated_at = time.monotonic()
+        self._stats_task = asyncio.create_task(self._sample_stats())
         log.info("Session %s activated by %r", self.session_id, name)
         return True
 
@@ -127,15 +143,55 @@ class ButtplugAppConnection:
                 [{"Index": actuator_index, "Scalar": intensity, "ActuatorType": actuator["type"]}],
             )
         )
+        self._intensities[(device_index, actuator_index)] = intensity
+        self.peak_intensity = max(self.peak_intensity, intensity)
+        self.command_count += 1
 
     async def stop_device(self, device_index: int) -> None:
         await self._send(proto.stop_device_cmd(self._next_id(), device_index))
+        for key in list(self._intensities):
+            if key[0] == device_index:
+                self._intensities[key] = 0.0
+        self.command_count += 1
 
     def devices_payload(self) -> list[dict]:
         return [
             {"index": idx, "name": d["name"], "actuators": d["actuators"]}
             for idx, d in sorted(self.devices.items())
         ]
+
+    def _current_intensity(self) -> float:
+        return max(self._intensities.values(), default=0.0)
+
+    def stats(self) -> dict:
+        """A snapshot of fun/interesting session numbers for the control page."""
+        duration = (time.monotonic() - self.activated_at) if self.activated_at else 0.0
+        minutes = duration / 60.0
+        return {
+            "session_id": self.session_id,
+            "controller_name": self.controller_name,
+            "duration_seconds": int(duration),
+            "commands": self.command_count,
+            "devices": len(self.devices),
+            "current_intensity": round(self._current_intensity(), 3),
+            "peak_intensity": round(self.peak_intensity, 3),
+            "active_seconds": int(self.active_seconds),
+            "vibration_units": round(self.vibration_units, 1),
+            "commands_per_minute": round(self.command_count / minutes, 1) if minutes > 0 else 0.0,
+        }
+
+    async def _sample_stats(self) -> None:
+        """Accumulate time-integrated stats (active time, vibration units)."""
+        interval = 0.5
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                current = self._current_intensity()
+                if current > 0:
+                    self.active_seconds += interval
+                self.vibration_units += current * interval
+        except asyncio.CancelledError:
+            pass
 
     # ---- internals ---------------------------------------------------------
 

@@ -224,6 +224,29 @@ async def test_dispatch_error_fails_the_pending_request():
         await fut
 
 
+async def test_stats_track_commands_peak_and_current():
+    ws = FakeAppWebSocket(server_name="sid", devices=[VIBE_DEVICE])
+    conn = ButtplugAppConnection(ws, SessionManager())
+    task = await _run(conn)
+    await conn.activate("Bob", "sid")
+
+    await conn.set_scalar(0, 0, 0.8)
+    await conn.set_scalar(0, 0, 0.3)
+    await conn.stop_device(0)
+
+    s = conn.stats()
+    assert s["controller_name"] == "Bob"
+    assert s["session_id"] == "sid"
+    assert s["commands"] == 3            # two scalars + one stop
+    assert s["devices"] == 1
+    assert s["peak_intensity"] == 0.8    # highest commanded
+    assert s["current_intensity"] == 0.0  # stopped
+    assert s["duration_seconds"] >= 0
+
+    await ws.close()
+    await asyncio.wait_for(task, 1)
+
+
 def test_devices_payload_shape():
     ws = FakeAppWebSocket()
     conn = ButtplugAppConnection(ws, SessionManager())

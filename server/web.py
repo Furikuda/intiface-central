@@ -11,6 +11,7 @@ No TLS, minimal auth: knowing the session ID is the only gate, so the POST form
 is rate limited per IP. Test-only.
 """
 
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -106,6 +107,17 @@ async def control_ws(request: web.Request) -> web.WebSocketResponse:
 
     conn.controller_ws = ws
     await ws.send_json({"type": "devices", "devices": conn.devices_payload()})
+    await ws.send_json({"type": "stats", "stats": conn.stats()})
+
+    async def push_stats() -> None:
+        try:
+            while not ws.closed:
+                await asyncio.sleep(1.0)
+                await ws.send_json({"type": "stats", "stats": conn.stats()})
+        except (asyncio.CancelledError, ConnectionResetError, RuntimeError):
+            pass
+
+    stats_task = asyncio.create_task(push_stats())
 
     try:
         async for msg in ws:
@@ -115,6 +127,10 @@ async def control_ws(request: web.Request) -> web.WebSocketResponse:
                 cmd = msg.json()
             except ValueError:
                 continue
+            if cmd.get("stop_all"):
+                for index in list(conn.devices):
+                    await conn.stop_device(index)
+                continue
             device = int(cmd.get("device"))
             actuator = int(cmd.get("actuator", 0))
             if cmd.get("stop"):
@@ -122,6 +138,7 @@ async def control_ws(request: web.Request) -> web.WebSocketResponse:
             else:
                 await conn.set_scalar(device, actuator, float(cmd.get("intensity", 0.0)))
     finally:
+        stats_task.cancel()
         if conn.controller_ws is ws:
             conn.controller_ws = None
             # Safety: stop everything when the controller leaves.

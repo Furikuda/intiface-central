@@ -25,6 +25,14 @@ class FakeConn:
         return [{"index": 0, "name": "Vibe", "actuators": [
             {"index": 0, "type": "Vibrate", "descriptor": "", "steps": 10}]}]
 
+    def stats(self):
+        return {
+            "session_id": self._sid, "controller_name": "Bob", "duration_seconds": 0,
+            "commands": len(self.scalars) + len(self.stops), "devices": 1,
+            "current_intensity": 0.0, "peak_intensity": 0.0, "active_seconds": 0,
+            "vibration_units": 0.0, "commands_per_minute": 0.0,
+        }
+
     async def set_scalar(self, device, actuator, intensity):
         self.scalars.append((device, actuator, intensity))
 
@@ -117,7 +125,7 @@ async def test_control_page_active(aiohttp_client):
 
     resp = await client.get("/control/sid1")
     assert resp.status == 200
-    assert "Device control" in (await resp.text())
+    assert "Totally Not Secure Intiface Proxy" in (await resp.text())
 
 
 async def test_control_page_unknown_redirects_home(aiohttp_client):
@@ -137,6 +145,10 @@ async def test_control_ws_relays_commands(aiohttp_client):
     ws = await client.ws_connect("/ws/control/sid1")
     first = await ws.receive_json()
     assert first["type"] == "devices"
+    # The control page is fed a live stats snapshot right after the device list.
+    stats_msg = await ws.receive_json()
+    assert stats_msg["type"] == "stats"
+    assert stats_msg["stats"]["controller_name"] == "Bob"
 
     await ws.send_json({"device": 0, "actuator": 0, "intensity": 0.5})
     await ws.send_json({"device": 0, "stop": True})
@@ -145,6 +157,25 @@ async def test_control_ws_relays_commands(aiohttp_client):
 
     assert (0, 0, 0.5) in conn.scalars
     assert 0 in conn.stops
+
+
+async def test_control_ws_stop_all(aiohttp_client):
+    mgr = FakeManager()
+    conn = FakeConn("sid1")
+    conn.session_id = "sid1"
+    conn.devices = {0: {"name": "A"}, 1: {"name": "B"}}
+    mgr.active["sid1"] = conn
+    client = await aiohttp_client(make_web_app(mgr))
+
+    ws = await client.ws_connect("/ws/control/sid1")
+    await ws.receive_json()  # devices
+    await ws.receive_json()  # stats
+    await ws.send_json({"stop_all": True})
+    await asyncio.sleep(0.05)
+    # Assert before closing: the close-time safety-stop would also stop everything,
+    # so checking here proves stop_all itself did the work.
+    assert sorted(conn.stops) == [0, 1]
+    await ws.close()
 
 
 async def test_control_ws_unknown_session(aiohttp_client):
