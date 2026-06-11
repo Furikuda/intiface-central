@@ -4,6 +4,7 @@ import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intiface_central/src/rust/api/runtime.dart';
 import 'package:intiface_central/util/intiface_util.dart';
+import 'package:intiface_central/util/session_id.dart';
 import 'package:pubspec_parse/pubspec_parse.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -162,6 +163,11 @@ class RepeaterRemoteAddressState extends IntifaceConfigurationState {
 class ClientWebsocketAddressState extends IntifaceConfigurationState {
   final String value;
   ClientWebsocketAddressState(this.value);
+}
+
+class ClientSessionIdState extends IntifaceConfigurationState {
+  final String value;
+  ClientSessionIdState(this.value);
 }
 
 class RestLocalPortState extends IntifaceConfigurationState {
@@ -565,6 +571,17 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
     emit(ClientWebsocketAddressState(value));
   }
 
+  // The Client Mode session ID is ephemeral: regenerated on each engine start and not
+  // persisted. Advertised to the remote server as the Buttplug server name.
+  String _clientSessionId = "";
+  String get clientSessionId => _clientSessionId;
+
+  String _newClientSessionId() {
+    _clientSessionId = generateSessionId();
+    emit(ClientSessionIdState(_clientSessionId));
+    return _clientSessionId;
+  }
+
   AppMode get appMode {
     var mode = _prefs.getString("appMode");
     return AppMode.values.firstWhere((element) => mode == element.name, orElse: () => AppMode.engine);
@@ -595,7 +612,9 @@ class IntifaceConfigurationCubit extends Cubit<IntifaceConfigurationState> {
     }
 
     return EngineOptionsExternal(
-      serverName: serverName,
+      // In client mode, advertise a fresh session ID as the Buttplug server name so the
+      // remote server can verify the ID a browser user types in.
+      serverName: appMode == AppMode.client ? _newClientSessionId() : serverName,
       deviceConfigJson: deviceConfigFile,
       userDeviceConfigJson: userDeviceConfigFile,
       userDeviceConfigPath: IntifacePaths.userDeviceConfigFile.path,

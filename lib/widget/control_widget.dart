@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intiface_central/bloc/configuration/intiface_configuration_cubit.dart';
 import 'package:intiface_central/bloc/engine/engine_control_bloc.dart';
@@ -227,7 +228,7 @@ class ControlWidget extends StatelessWidget {
                   } else if (state is EngineStartedState ||
                       state is EngineServerCreatedState ||
                       state is ClientDisconnectedState) {
-                    engineStatus = "Connecting to remote server...";
+                    engineStatus = "Waiting for someone to connect";
                   } else if (state is EngineStartingState) {
                     engineStatus = "Client starting...";
                   } else if (state is EngineStoppedState) {
@@ -261,6 +262,52 @@ class ControlWidget extends StatelessWidget {
                   builder: (context, state) => Text(
                     "ws://${configCubit.websocketServerAllInterfaces ? (networkCubit.ip ?? "0.0.0.0") : "localhost"}:${configCubit.websocketServerPort}",
                   ),
+                ),
+              ]);
+            }
+
+            if (configCubit.appMode == AppMode.client) {
+              columnWidgets.addAll([
+                const Text(
+                  "Session ID:",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                BlocBuilder<
+                  IntifaceConfigurationCubit,
+                  IntifaceConfigurationState
+                >(
+                  bloc: configCubit,
+                  buildWhen: (previous, current) =>
+                      current is ClientSessionIdState,
+                  builder: (context, state) {
+                    final sessionId = configCubit.clientSessionId;
+                    if (sessionId.isEmpty) {
+                      return const Text("(starting…)");
+                    }
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: SelectableText(
+                            sessionId,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy, size: 18),
+                          tooltip: "Copy session ID",
+                          onPressed: () =>
+                              Clipboard.setData(ClipboardData(text: sessionId)),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const Text(
+                  "Share this so someone can control your device from a browser.",
                 ),
               ]);
             }
